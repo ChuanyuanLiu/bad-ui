@@ -1,50 +1,41 @@
 "use client"
-import React, { useRef, useState, useEffect, MouseEvent } from 'react';
+import React, { useRef, useState, useEffect, MouseEvent, useLayoutEffect } from 'react';
 
 const DrawingApp: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const [color, setColor] = useState<string>('#000000');
   const [penSize, setPenSize] = useState<number>(5);
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const [isErasing, setIsErasing] = useState<boolean>(false);
-  const [canvasSize, setCanvasSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+  const [search, setSearch] = useState<string>('');
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const context = canvas.getContext('2d');
-    if (!context) return;
+    const canvasContainer = canvasContainerRef.current
+    if (!canvasContainer) return;
 
-    // Set canvas size
-    canvas.width = canvasSize.width;
-    canvas.height = canvasSize.height;
+    const resize = () => {
+      const context = canvas.getContext('2d');
+      if (!context) return;
+      // clone
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      // resize and preserve content
+      canvas.width = Math.max(canvasContainer.clientWidth, canvas.width);
+      canvas.height = Math.max(canvasContainer.clientHeight, canvas.height);
+      // redraw
+      context.putImageData(imageData, 0, 0);
+      context.lineCap = 'round';
+      context.lineJoin = 'round';
+    }
+    resize()
+    window.addEventListener('resize', resize);
+    return () => {
+      window.removeEventListener('resize', resize);
+    }
+  }, []);
 
-    context.lineCap = 'round';
-    context.lineJoin = 'round';
-
-    const handleResize = () => {
-      const tempCanvas = document.createElement('canvas');
-      const tempContext = tempCanvas.getContext('2d');
-
-      if (tempContext && canvas) {
-        // Copy existing canvas to temporary canvas
-        tempCanvas.width = canvas.width;
-        tempCanvas.height = canvas.height;
-        tempContext.drawImage(canvas, 0, 0);
-
-        // Resize the canvas
-        setCanvasSize({ width: window.innerWidth, height: window.innerHeight });
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-
-        // Draw the temporary canvas back onto the resized canvas
-        context.drawImage(tempCanvas, 0, 0);
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [canvasSize]);
 
   const startDrawing = (e: MouseEvent<HTMLCanvasElement>) => {
     const context = canvasRef.current?.getContext('2d');
@@ -70,43 +61,143 @@ const DrawingApp: React.FC = () => {
     setIsDrawing(false);
   };
 
-  const toggleEraser = () => {
-    setIsErasing(!isErasing);
-  };
+  const tools: {
+    name: string;
+    icon: string;
+    action: () => void;
+  }[] = [
+      {
+        name: 'eraser',
+        icon: 'eraser',
+        action: () => {
+          setIsErasing(true);
+        }
+      },
+      {
+        name: 'pen',
+        icon: 'pen',
+        action: () => {
+          setIsErasing(false);
+        }
+      },
+      {
+        name: 'clear',
+        icon: 'trash',
+        action: () => {
+          const context = canvasRef.current?.getContext('2d');
+          if (!context) return;
+          context.clearRect(0, 0, canvasRef.current?.width || 0, canvasRef.current?.height || 0);
+        }
+      }
+    ]
+
+  const penSizes: {
+    name: string;
+    size: number;
+  }[] = [
+      {
+        name: 'x-small',
+        size: 1
+      },
+      {
+        name: 'small',
+        size: 5
+      },
+      {
+        name: 'medium',
+        size: 10
+      },
+      {
+        name: 'large',
+        size: 15
+      },
+      {
+        name: 'x-large',
+        size: 20
+      }
+    ]
+
+  const colors: {
+    name: string,
+    code: string
+  }[] = [
+      { name: 'black', code: '#000000' },
+      { name: 'red', code: '#FF0000' },
+      { name: 'green', code: '#00FF00' },
+      { name: 'blue', code: '#0000FF' },
+      { name: 'yellow', code: '#FFFF00' },
+      { name: 'cyan', code: '#00FFFF' },
+      { name: 'magenta', code: '#FF00FF' },
+      { name: 'white', code: '#FFFFFF' },
+    ]
 
   return (
-    <div>
-      <div>
-        <label>Color: </label>
-        <input
-          type="color"
-          value={color}
-          onChange={(e) => setColor(e.target.value)}
+    <div className='w-screen h-screen flex flex-col gap-2 overflow-hidden'>
+      <input className='input input-bordered m-3 flex-shrink-0' type='text'
+        onInput={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
+        value={search} />
+      <div className='flex gap-2 flex-wrap mx-3'>
+        {
+          colors.filter(({ name }) => {
+            return name.includes(search)
+          }).map(({ name, code }) => {
+            return <div key={name}
+              className='btn btn-sm'
+            >
+              {name}
+              <div
+                className='w-3 h-3'
+                style={{ backgroundColor: code }}
+                onClick={() => setColor(code)}
+              >
+              </div>
+            </div>
+          })
+        }
+        {
+          penSizes.filter(({ name }) => {
+            return name.includes(search)
+          }).map(({ name, size }) => {
+            return <div key={name}
+              className='btn btn-sm'
+              onClick={() => setPenSize(size)}
+            >
+              {name}
+              <div
+                className='bg-black rounded-full'
+                style={{
+                  width: size,
+                  height: size,
+                }}
+              />
+            </div>
+          })
+        }
+        {
+          tools.filter(({ name }) => {
+            return name.includes(search)
+          }).map(({ name, icon, action }) => {
+            return <div
+              className='btn btn-sm'
+              key={name} onClick={action}>
+              {name}
+            </div>
+          })
+        }
+      </div>
+      <div
+        ref={canvasContainerRef}
+        className="border-4 m-4 border-black rounded-lg overflow-auto flex-grow flex-shrink"
+      >
+        <canvas
+          ref={canvasRef}
+          onMouseDown={startDrawing}
+          onMouseMove={draw}
+          onMouseUp={stopDrawing}
+          onMouseLeave={stopDrawing}
         />
       </div>
-      <div>
-        <label>Pen Size: </label>
-        <input
-          type="range"
-          min="1"
-          max="50"
-          value={penSize}
-          onChange={(e) => setPenSize(parseInt(e.target.value))}
-        />
-      </div>
-      <div>
-        <button onClick={toggleEraser}>
-          {isErasing ? 'Switch to Pen' : 'Switch to Eraser'}
-        </button>
-      </div>
-      <canvas
-        ref={canvasRef}
-        onMouseDown={startDrawing}
-        onMouseMove={draw}
-        onMouseUp={stopDrawing}
-        onMouseLeave={stopDrawing}
-      />
-    </div>
+    </div >
   );
 };
 
