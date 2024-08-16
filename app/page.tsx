@@ -69,11 +69,11 @@ const DrawingApp: React.FC = () => {
     }
     resize()
     window.addEventListener('resize', resize);
-    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
-    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchstart', handleTouchStart as any, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove as any, { passive: false });
     return () => {
-      canvas.removeEventListener('touchstart', handleTouchStart);
-      canvas.removeEventListener('touchmove', handleTouchMove);
+      canvas.removeEventListener('touchstart', handleTouchStart as any);
+      canvas.removeEventListener('touchmove', handleTouchMove as any);
       window.removeEventListener('resize', resize);
     }
   }, [handleTouchMove, handleTouchStart]);
